@@ -1,0 +1,48 @@
+[
+  {
+    "id": "1758955664111",
+    "fullName": "Nishant",
+    "email": "nishikant@gmail.com",
+    "password": "$2b$10$z1/5UtP3O7pVU//s597kMe3McrT/edgNRYVRDWNlImLfTU7LBVtZS",
+    "profilePicture": null,
+    "createdAt": "2025-09-27T06:47:44.111Z",
+    "lastLogin": "2025-10-07T07:38:00.368Z",
+    "updatedAt": "2025-09-27T17:48:43.257Z"
+  },
+  {
+    "id": "1758959244555",
+    "fullName": "Gaurav",
+    "email": "gauravsonawane3158@gmail.com",
+    "password": "$2b$10$QdztRanlpcZEEt4pAdT4ku.TdSqTCaELGmEUa1GaFV1O6GPQOZLlu",
+    "profilePicture": null,
+    "createdAt": "2025-09-27T07:47:24.555Z",
+    "lastLogin": "2025-10-07T18:38:57.160Z"
+  },
+  {
+    "id": "1758984216741",
+    "fullName": "Test Abc",
+    "email": "test@gmail.com",
+    "password": "$2b$10$KwJpJA2or7ytCuXdP5PyVeJw/XT9mFmbdq/lNlE8X.D/pxdXFa5o.",
+    "profilePicture": null,
+    "createdAt": "2025-09-27T14:43:36.741Z",
+    "lastLogin": "2025-09-27T14:43:36.741Z"
+  },
+  {
+    "id": "1758985937858",
+    "fullName": "Ganesh",
+    "email": "ganesh@gmail.com",
+    "password": "$2b$10$82w4DYAg7XProcO.xEhBKe7.PTifP1o5Mci2oCnHXm/GifV1OTPkO",
+    "profilePicture": null,
+    "createdAt": "2025-09-27T15:12:17.858Z",
+    "lastLogin": "2025-09-27T15:12:39.194Z"
+  },
+  {
+    "id": "1758994371444",
+    "fullName": "Ganesh Dake",
+    "email": "ganeshdake@gmail.com",
+    "password": "$2b$10$UmrGJCVl2MvvxRH1VE5zD.zxhkqRS.AeH92Na6qjP0IoYFlW2Nvrm",
+    "profilePicture": null,
+    "createdAt": "2025-09-27T17:32:51.445Z",
+    "lastLogin": "2025-09-27T17:32:51.445Z"
+  }
+]

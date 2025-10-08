@@ -1,0 +1,10 @@
+# .railwayignore - Ignore problematic files
+package-lock.json
+yarn.lock
+npm-shrinkwrap.json
+node_modules/
+.env
+.env.*
+*.log
+.DS_Store
+.git/

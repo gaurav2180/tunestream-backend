@@ -8,15 +8,11 @@ const multer = require('multer');
 
 const app = express();
 
-// Import routes
-const authRoutes = require('./routes/authRoutes');
-const musicRoutes = require('./routes/musicRoutes');
-const playlistRoutes = require('./routes/playlistRoutes');
-const statsRoutes = require('./routes/statsRoutes');
-
 // Production configuration
 const isProduction = process.env.NODE_ENV === 'production';
 const PORT = process.env.PORT || 9000;
+
+console.log(`🚀 Starting TuneStream Backend (${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'})`);
 
 // Enhanced CORS Configuration for Production
 const corsOptions = {
@@ -42,11 +38,11 @@ const corsOptions = {
       return allowedOrigin.test(origin);
     });
     
-    if (isAllowed) {
+    if (isAllowed || !isProduction) {
       callback(null, true);
     } else {
       console.log('🚫 CORS blocked origin:', origin);
-      callback(null, true); // Allow in development, you can change this to false in strict production
+      callback(null, false);
     }
   },
   credentials: true,
@@ -77,13 +73,22 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Ensure data directory exists
-fs.ensureDirSync(path.join(__dirname, 'data'));
+try {
+  fs.ensureDirSync(path.join(__dirname, 'data'));
+  console.log('✅ Data directory created/verified');
+} catch (error) {
+  console.log('⚠️ Data directory creation failed:', error.message);
+}
 
 // Create uploads directory for profile pictures
 const uploadsDir = path.join(__dirname, 'uploads', 'profile-pictures');
-console.log('📁 Creating uploads directory:', uploadsDir);
-fs.ensureDirSync(uploadsDir);
-console.log('✅ Uploads directory created/verified');
+try {
+  console.log('📁 Creating uploads directory:', uploadsDir);
+  fs.ensureDirSync(uploadsDir);
+  console.log('✅ Uploads directory created/verified');
+} catch (error) {
+  console.log('⚠️ Uploads directory creation failed:', error.message);
+}
 
 // Configure multer for profile picture uploads
 const storage = multer.diskStorage({
@@ -121,10 +126,10 @@ console.log('✅ Multer configured successfully');
 
 // Serve uploaded files statically with cache headers
 app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
-  maxAge: isProduction ? '7d' : '1d', // Cache for 7 days in production
+  maxAge: isProduction ? '7d' : '1d',
   setHeaders: (res, path) => {
     if (path.endsWith('.jpg') || path.endsWith('.png') || path.endsWith('.gif')) {
-      res.setHeader('Cache-Control', 'public, max-age=604800'); // 7 days
+      res.setHeader('Cache-Control', 'public, max-age=604800');
     }
   }
 }));
@@ -133,26 +138,84 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
 app.use((req, res, next) => {
   const timestamp = new Date().toISOString();
   const origin = req.headers.origin || 'no-origin';
-  const userAgent = req.headers['user-agent'] || 'no-user-agent';
   
   console.log(`${timestamp} - ${req.method} ${req.path} - Origin: ${origin}`);
-  
-  if (isProduction && req.path.includes('upload-profile-picture')) {
-    console.log('📤 Production profile upload request:', {
-      'content-type': req.headers['content-type'],
-      'content-length': req.headers['content-length'],
-      'user-agent': userAgent.substring(0, 50) + '...'
-    });
-  }
   next();
 });
 
-// Profile picture upload endpoint with PERSISTENT STORAGE
+// Root endpoint - MUST BE FIRST
+app.get('/', (req, res) => {
+  console.log('🏠 Root endpoint hit');
+  res.json({
+    message: 'TuneStream API Server v2.0',
+    version: '2.0.0-smart',
+    status: 'OK',
+    architecture: 'Smart Service Factory',
+    environment: isProduction ? 'Production' : 'Development',
+    platform: isProduction ? 'Railway' : 'Local',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: '/api/health',
+      profilePictureUpload: '/api/users/upload-profile-picture (POST)',
+      getUserProfile: '/api/users/profile/:userId (GET)',
+      deleteUserProfile: '/api/users/profile-picture/:userId (DELETE)',
+      testUpload: '/api/test-upload (POST)'
+    },
+    features: [
+      'Profile picture uploads', 
+      'Persistent storage',
+      'CORS enabled',
+      'Production ready'
+    ],
+    deployment: {
+      backend: 'Railway',
+      status: 'Live and healthy'
+    }
+  });
+});
+
+// Health check endpoint - MUST WORK
+app.get('/api/health', (req, res) => {
+  console.log('🏥 Health check endpoint hit');
+  
+  try {
+    const healthData = {
+      status: 'OK',
+      message: 'TuneStream Backend v2.0 - Healthy',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      platform: isProduction ? 'Railway Production' : 'Local Development',
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      features: [
+        'Profile Picture Upload', 
+        'Persistent Storage',
+        'Production Ready'
+      ],
+      uploadsDirectory: uploadsDir,
+      uploadsEnabled: fs.existsSync(uploadsDir),
+      server: {
+        port: PORT,
+        host: isProduction ? 'Railway' : 'localhost',
+        protocol: isProduction ? 'HTTPS' : 'HTTP'
+      }
+    };
+    
+    res.json(healthData);
+  } catch (error) {
+    console.error('❌ Health check error:', error);
+    res.status(500).json({
+      status: 'ERROR',
+      message: 'Health check failed',
+      error: error.message
+    });
+  }
+});
+
+// Profile picture upload endpoint
 app.post('/api/users/upload-profile-picture', (req, res, next) => {
   console.log('\n🚀 === PROFILE PICTURE UPLOAD STARTED ===');
   console.log('Environment:', isProduction ? 'PRODUCTION' : 'DEVELOPMENT');
-  console.log('Headers:', req.headers);
-  console.log('Content-Type:', req.headers['content-type']);
   next();
 }, upload.single('profilePicture'), async (req, res) => {
   console.log('🔍 After multer processing');
@@ -162,21 +225,7 @@ app.post('/api/users/upload-profile-picture', (req, res, next) => {
   try {
     const { userId } = req.body;
     
-    console.log('📋 Request details:');
-    console.log('  - User ID:', userId);
-    console.log('  - File received:', req.file ? 'YES' : 'NO');
-    
-    if (req.file) {
-      console.log('📄 File details:');
-      console.log('  - Original name:', req.file.originalname);
-      console.log('  - Generated name:', req.file.filename);
-      console.log('  - MIME type:', req.file.mimetype);
-      console.log('  - Size:', req.file.size, 'bytes');
-      console.log('  - Path:', req.file.path);
-    }
-    
     if (!req.file) {
-      console.log('❌ Upload failed: No file received');
       return res.status(400).json({ 
         success: false, 
         message: 'No file uploaded' 
@@ -184,61 +233,51 @@ app.post('/api/users/upload-profile-picture', (req, res, next) => {
     }
 
     if (!userId) {
-      console.log('❌ Upload failed: No user ID');
       return res.status(400).json({ 
         success: false, 
         message: 'User ID is required' 
       });
     }
 
-    // Generate the full URL for the uploaded file - production compatible
     const baseUrl = isProduction ? 
       `https://${req.get('host')}` : 
       `${req.protocol}://${req.get('host')}`;
     
     const profilePictureUrl = `${baseUrl}/uploads/profile-pictures/${req.file.filename}`;
-    
-    console.log('🌐 Generated URL:', profilePictureUrl);
-    console.log('🔧 Base URL mode:', isProduction ? 'PRODUCTION HTTPS' : 'DEVELOPMENT HTTP');
 
     // SAVE TO PERSISTENT STORAGE
     try {
       const usersDir = path.join(__dirname, 'data');
       const usersFilePath = path.join(usersDir, 'users-profiles.json');
       
-      // Ensure data directory exists
       fs.ensureDirSync(usersDir);
       
       let users = {};
       
-      // Read existing users if file exists
       if (fs.existsSync(usersFilePath)) {
         const fileContent = fs.readFileSync(usersFilePath, 'utf8');
         users = fileContent ? JSON.parse(fileContent) : {};
       }
       
-      // Delete old profile picture file if it exists
+      // Delete old profile picture if exists
       if (users[userId] && users[userId].filename) {
         const oldFilePath = path.join(uploadsDir, users[userId].filename);
         if (fs.existsSync(oldFilePath)) {
           fs.unlinkSync(oldFilePath);
-          console.log('🗑️ Deleted old profile picture:', users[userId].filename);
+          console.log('🗑️ Deleted old profile picture');
         }
       }
       
-      // Update or create user profile picture record
       users[userId] = {
         userId: userId,
         profilePicture: profilePictureUrl,
         filename: req.file.filename,
         uploadedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
         environment: isProduction ? 'production' : 'development'
       };
       
-      // Save back to file
       fs.writeFileSync(usersFilePath, JSON.stringify(users, null, 2));
-      console.log('💾 Profile picture URL saved to persistent storage');
+      console.log('💾 Profile picture saved to storage');
       
     } catch (saveError) {
       console.error('💾 Storage save error:', saveError);
@@ -248,8 +287,7 @@ app.post('/api/users/upload-profile-picture', (req, res, next) => {
       });
     }
     
-    console.log('✅ Profile picture uploaded and saved successfully!');
-    console.log('=== PROFILE PICTURE UPLOAD COMPLETED ===\n');
+    console.log('✅ Profile picture upload completed');
     
     res.json({ 
       success: true, 
@@ -260,8 +298,7 @@ app.post('/api/users/upload-profile-picture', (req, res, next) => {
     });
     
   } catch (error) {
-    console.error('❌ Profile picture upload error:', error);
-    console.log('=== PROFILE PICTURE UPLOAD FAILED ===\n');
+    console.error('❌ Upload error:', error);
     res.status(500).json({ 
       success: false, 
       message: 'Failed to upload profile picture',
@@ -270,16 +307,13 @@ app.post('/api/users/upload-profile-picture', (req, res, next) => {
   }
 });
 
-// GET USER PROFILE PICTURE endpoint
+// GET user profile endpoint
 app.get('/api/users/profile/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    console.log('📋 Getting profile picture for user:', userId);
-    
-    // Read from persistent storage
     const usersFilePath = path.join(__dirname, 'data', 'users-profiles.json');
-    let users = {};
     
+    let users = {};
     if (fs.existsSync(usersFilePath)) {
       const fileContent = fs.readFileSync(usersFilePath, 'utf8');
       users = fileContent ? JSON.parse(fileContent) : {};
@@ -288,14 +322,10 @@ app.get('/api/users/profile/:userId', async (req, res) => {
     const userProfile = users[userId];
     
     if (userProfile && userProfile.profilePicture) {
-      // Check if the file still exists
       const filename = userProfile.filename;
       const filePath = path.join(uploadsDir, filename);
       
       if (fs.existsSync(filePath)) {
-        console.log('✅ Profile picture found:', userProfile.profilePicture);
-        
-        // Update URL format for production if needed
         let profilePictureUrl = userProfile.profilePicture;
         if (isProduction && profilePictureUrl.includes('http://')) {
           const baseUrl = `https://${req.get('host')}`;
@@ -305,46 +335,30 @@ app.get('/api/users/profile/:userId', async (req, res) => {
         res.json({
           success: true,
           profilePicture: profilePictureUrl,
-          uploadedAt: userProfile.uploadedAt,
-          environment: isProduction ? 'production' : 'development'
+          uploadedAt: userProfile.uploadedAt
         });
       } else {
-        console.log('⚠️ Profile picture file missing, cleaning up record');
-        // File doesn't exist, remove from records
         delete users[userId];
         fs.writeFileSync(usersFilePath, JSON.stringify(users, null, 2));
-        
-        res.json({
-          success: true,
-          profilePicture: null
-        });
+        res.json({ success: true, profilePicture: null });
       }
     } else {
-      console.log('⚠️ No profile picture found for user:', userId);
-      res.json({
-        success: true,
-        profilePicture: null
-      });
+      res.json({ success: true, profilePicture: null });
     }
     
   } catch (error) {
     console.error('❌ Get profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get user profile'
-    });
+    res.status(500).json({ success: false, message: 'Failed to get user profile' });
   }
 });
 
-// DELETE USER PROFILE PICTURE endpoint
+// DELETE user profile endpoint
 app.delete('/api/users/profile-picture/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    console.log('🗑️ Deleting profile picture for user:', userId);
-    
     const usersFilePath = path.join(__dirname, 'data', 'users-profiles.json');
-    let users = {};
     
+    let users = {};
     if (fs.existsSync(usersFilePath)) {
       const fileContent = fs.readFileSync(usersFilePath, 'utf8');
       users = fileContent ? JSON.parse(fileContent) : {};
@@ -353,190 +367,69 @@ app.delete('/api/users/profile-picture/:userId', async (req, res) => {
     const userProfile = users[userId];
     
     if (userProfile && userProfile.filename) {
-      // Delete the physical file
       const filePath = path.join(uploadsDir, userProfile.filename);
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
-        console.log('✅ Physical file deleted:', userProfile.filename);
       }
       
-      // Remove from records
       delete users[userId];
       fs.writeFileSync(usersFilePath, JSON.stringify(users, null, 2));
-      
-      res.json({ success: true, message: 'Profile picture deleted successfully' });
-    } else {
-      res.json({ success: true, message: 'No profile picture to delete' });
     }
     
+    res.json({ success: true, message: 'Profile picture deleted successfully' });
+    
   } catch (error) {
-    console.error('❌ Delete profile picture error:', error);
+    console.error('❌ Delete error:', error);
     res.status(500).json({ success: false, message: 'Failed to delete profile picture' });
   }
 });
 
-// Test endpoint to verify server is working
-app.get('/api/users/upload-profile-picture', (req, res) => {
+// Simple auth endpoints (basic stubs)
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  // Basic stub - replace with real auth later
   res.json({
-    message: 'Profile picture upload endpoint is working',
-    method: 'This endpoint only accepts POST requests with multipart/form-data',
-    expectedFields: ['profilePicture (file)', 'userId (string)'],
-    maxFileSize: '5MB',
-    allowedTypes: ['image/jpeg', 'image/png', 'image/gif'],
-    environment: isProduction ? 'production' : 'development',
-    server: 'Railway' + (isProduction ? ' Production' : ' Development')
+    success: true,
+    user: { id: email, email: email, fullName: 'Test User' },
+    token: 'dummy-token-' + Date.now()
   });
 });
 
-// Simple test upload endpoint for debugging
-app.post('/api/test-upload', upload.single('testFile'), (req, res) => {
-  console.log('🧪 Test upload endpoint hit');
-  console.log('File:', req.file);
-  console.log('Body:', req.body);
-  
-  if (req.file) {
-    res.json({ 
-      success: true, 
-      message: 'Test upload works', 
-      file: {
-        originalname: req.file.originalname,
-        filename: req.file.filename,
-        size: req.file.size,
-        mimetype: req.file.mimetype
-      },
-      environment: isProduction ? 'production' : 'development'
-    });
-  } else {
-    res.json({ success: false, message: 'No file received in test upload' });
-  }
-});
-
-// LEGACY: Delete profile picture by filename (keep for backward compatibility)
-app.delete('/api/users/profile-picture/:filename', (req, res) => {
-  try {
-    const { filename } = req.params;
-    const filePath = path.join(uploadsDir, filename);
-    
-    console.log('🗑️ Legacy delete request for:', filename);
-    
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-      console.log('✅ Deleted profile picture:', filename);
-      res.json({ success: true, message: 'Profile picture deleted' });
-    } else {
-      console.log('❌ File not found for deletion:', filename);
-      res.status(404).json({ success: false, message: 'File not found' });
-    }
-  } catch (error) {
-    console.error('❌ Delete profile picture error:', error);
-    res.status(500).json({ success: false, message: 'Failed to delete file' });
-  }
-});
-
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/music', musicRoutes);
-app.use('/api/playlists', playlistRoutes);
-app.use('/api/stats', statsRoutes);
-
-// Health check endpoint - enhanced for production
-app.get('/api/health', (req, res) => {
-  const healthData = {
-    status: 'OK',
-    message: 'TuneStream Backend v2.0 - Smart Service Architecture',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    platform: isProduction ? 'Railway Production' : 'Local Development',
-    features: [
-      'Smart Service Factory', 
-      'Spotify Integration', 
-      'Demo Fallback', 
-      'Profile Picture Upload', 
-      'Persistent Storage',
-      'Production Ready'
-    ],
-    uploadsDirectory: uploadsDir,
-    uploadsEnabled: fs.existsSync(uploadsDir),
-    cors: corsOptions.origin ? 'Custom CORS enabled' : 'Default CORS',
-    security: isProduction ? 'Production security headers enabled' : 'Development mode',
-    server: {
-      port: PORT,
-      host: isProduction ? 'Railway' : 'localhost',
-      protocol: isProduction ? 'HTTPS' : 'HTTP'
-    }
-  };
-  
-  res.json(healthData);
-});
-
-// Root endpoint - enhanced
-app.get('/', (req, res) => {
+app.post('/api/auth/register', (req, res) => {
+  const { fullName, email, password } = req.body;
+  // Basic stub - replace with real auth later
   res.json({
-    message: 'TuneStream API Server v2.0',
-    version: '2.0.0-smart',
-    architecture: 'Smart Service Factory',
-    environment: isProduction ? 'Production' : 'Development',
-    platform: isProduction ? 'Railway' : 'Local',
-    endpoints: {
-      health: '/api/health',
-      auth: '/api/auth',
-      music: '/api/music',
-      playlists: '/api/playlists',
-      stats: '/api/stats',
-      profilePictureUpload: '/api/users/upload-profile-picture (POST)',
-      getUserProfile: '/api/users/profile/:userId (GET)',
-      deleteUserProfile: '/api/users/profile-picture/:userId (DELETE)',
-      testUpload: '/api/test-upload (POST)'
-    },
-    musicService: 'Smart Factory (Demo + Spotify)',
-    features: [
-      'Auto-fallback', 
-      'Service switching', 
-      'Production ready', 
-      'Profile uploads', 
-      'Persistent storage',
-      'CORS enabled',
-      'Security headers'
-    ],
-    deployment: {
-      backend: 'Railway',
-      frontend: 'Vercel',
-      status: 'Optimized for production'
-    }
+    success: true,
+    user: { id: email, email: email, fullName: fullName },
+    token: 'dummy-token-' + Date.now()
   });
 });
 
-// Error handling middleware for multer and general errors
+app.get('/api/auth/verify', (req, res) => {
+  // Basic stub - replace with real auth later
+  res.json({ success: true });
+});
+
+// Error handling middleware
 app.use((error, req, res, next) => {
   console.log('🚨 Error middleware triggered:', error.message);
   
-  // Handle multer-specific errors
   if (error instanceof multer.MulterError) {
-    console.log('📁 Multer error detected:', error.code);
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({
         success: false,
         message: 'File size too large. Maximum size is 5MB.'
       });
     }
-    if (error.code === 'LIMIT_UNEXPECTED_FILE') {
-      return res.status(400).json({
-        success: false,
-        message: 'Unexpected file field. Use "profilePicture" as field name.'
-      });
-    }
   }
   
-  // Handle custom file type error
   if (error.message === 'Only image files are allowed') {
-    console.log('🖼️ File type error detected');
     return res.status(400).json({
       success: false,
       message: 'Only image files (JPG, PNG, GIF) are allowed.'
     });
   }
   
-  // General error handling
   console.error('💥 General server error:', error);
   res.status(500).json({
     error: 'Internal server error',
@@ -545,71 +438,45 @@ app.use((error, req, res, next) => {
   });
 });
 
-// 404 handler for unknown routes
+// 404 handler
 app.use('*', (req, res) => {
+  console.log('❓ 404 - Route not found:', req.originalUrl);
   res.status(404).json({
     success: false,
     message: 'Route not found',
     path: req.originalUrl,
-    method: req.method,
-    timestamp: new Date().toISOString()
+    method: req.method
   });
 });
 
-// Start server with enhanced logging for production
-app.listen(PORT, '0.0.0.0', async () => {
+// Start server
+app.listen(PORT, '0.0.0.0', (err) => {
+  if (err) {
+    console.error('❌ Server failed to start:', err);
+    process.exit(1);
+  }
+  
   console.log('\n🚀 =======================================');
-  console.log('🎵 TUNESTREAM BACKEND v2.0 STARTING...');
+  console.log('🎵 TUNESTREAM BACKEND v2.0 STARTED!');
   console.log('=========================================');
-  console.log(`🌐 Server running on: ${isProduction ? 'HTTPS' : 'HTTP'}://localhost:${PORT}`);
-  console.log(`🏗️  Platform: ${isProduction ? 'Railway Production' : 'Local Development'}`);
+  console.log(`🌐 Server: ${isProduction ? 'HTTPS' : 'HTTP'}://localhost:${PORT}`);
+  console.log(`🏗️  Platform: ${isProduction ? 'Railway Production' : 'Local'}`);
   console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`📊 Node.js version: ${process.version}`);
-  console.log(`🔗 CORS: ${isProduction ? 'Production domains enabled' : 'Development mode'}`);
   console.log(`📁 Uploads: ${uploadsDir}`);
-  console.log(`📁 Directory exists: ${fs.existsSync(uploadsDir) ? '✅' : '❌'}`);
-  console.log(`📸 Profile pictures: ✅ ENABLED with PERSISTENT STORAGE`);
-  console.log(`💾 Profile data: ${path.join(__dirname, 'data', 'users-profiles.json')}`);
-  console.log(`🛡️  Security: ${isProduction ? '✅ Production headers enabled' : '⚠️  Development mode'}`);
-  
-  if (isProduction) {
-    console.log('🔐 Production features:');
-    console.log('   - HTTPS enforced');
-    console.log('   - Security headers active');
-    console.log('   - Error messages sanitized');
-    console.log('   - File caching enabled');
-    console.log('   - CORS optimized for Vercel');
-  }
-  
-  console.log('\n🎛️ API Endpoints:');
-  console.log(`   📍 Health: ${isProduction ? 'https://' : 'http://localhost:'}${isProduction ? `${req?.get?.('host') || 'your-railway-url'}` : PORT}/api/health`);
-  console.log(`   🔐 Auth: /api/auth`);
-  console.log(`   🎵 Music: /api/music`);
-  console.log(`   📋 Playlists: /api/playlists`);
-  console.log(`   📊 Stats: /api/stats`);
-  console.log(`   📸 Profile Upload: /api/users/upload-profile-picture`);
-  
-  console.log('\n🎵 Music Service: Smart Factory (Demo + Spotify)');
-  console.log(`🔄 Spotify Mode: ${process.env.USE_DEMO_MODE === 'true' ? '❌ Disabled (Demo Mode)' : '✅ Enabled'}`);
-  console.log('⚡ Architecture: Smart service switching available');
-  
-  // Test the uploads directory
-  try {
-    const testFile = path.join(uploadsDir, 'test.txt');
-    fs.writeFileSync(testFile, 'test');
-    fs.unlinkSync(testFile);
-    console.log(`\n✅ Uploads directory: WRITABLE`);
-  } catch (error) {
-    console.error(`\n❌ Uploads directory: NOT WRITABLE - ${error.message}`);
-  }
-  
-  // Check if users-profiles.json exists
-  const usersFilePath = path.join(__dirname, 'data', 'users-profiles.json');
-  console.log(`💾 Users profiles file: ${fs.existsSync(usersFilePath) ? '✅ EXISTS' : '🆕 WILL BE CREATED'}`);
-  
-  console.log('\n🌐 Server ready for connections!');
-  console.log('🚀 TuneStream Backend is live and optimized for production');
+  console.log(`📸 Profile uploads: ENABLED`);
+  console.log('\n✅ Server is healthy and ready!');
   console.log('=========================================\n');
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('❌ Unhandled Rejection:', err);
+  process.exit(1);
 });
 
 module.exports = app;

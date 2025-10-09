@@ -1,11 +1,10 @@
 const { jamendoApi, iTunesApi } = require("../config/apis");
 const NodeCache = require("node-cache");
 
-// Cache for 1 hour
+
 const cache = new NodeCache({ stdTTL: 3600 });
 
 class MusicService {
-  // Get trending songs from Jamendo
   async getTrendingSongs(limit = 20) {
     const cacheKey = `trending_${limit}`;
     const cached = cache.get(cacheKey);

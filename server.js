@@ -8,7 +8,6 @@ console.log('🚀 Starting TuneStream Backend with NPM...');
 console.log('📦 Node.js version:', process.version);
 console.log('🔧 NPM mode: production install');
 
-// Basic CORS setup
 app.use(cors({
   origin: [
     'http://localhost:3000',
@@ -23,7 +22,6 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Root endpoint - Railway healthcheck
 app.get('/', (req, res) => {
   console.log('✅ Root endpoint accessed');
   res.json({

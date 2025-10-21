@@ -37,7 +37,6 @@ app.get('/', (req, res) => {
   });
 });
 
-// Health check endpoint
 app.get('/api/health', (req, res) => {
   console.log('🏥 Health check accessed');
   res.json({
@@ -51,7 +50,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Basic auth endpoints (stubs for frontend)
 app.post('/api/auth/login', (req, res) => {
   console.log('🔐 Login endpoint accessed');
   const { email, password } = req.body;
